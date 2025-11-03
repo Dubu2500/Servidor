@@ -1,0 +1,33 @@
+<h2>ChatGPI</h2>
+<div id="mensajes"></div>
+<input type = "text" id="mensaje">
+<button id = "boton"> Enviar</button> 
+<script>
+    console.log('carga la pagina de chat..')
+    const socket = io('/');
+    //escuchar un evento
+    socket.on('confirmacion', () => {
+        console.log('Excelente!')
+    })
+    const inputMensaje = document.getElementById('mensake');
+    const contenedor = document.getElementById('mensajes');
+    document.getElementById('boton').addEventListener('click', () => {
+        //voy a leer el mensaje que quiero enviar
+        const mensaje = inputMensaje.value;
+        socket.emit('messageSent', {
+            //dato: 'test'
+            mensaje
+        }) //emit para lanzar un evento
+
+    }) //agregar un input una caja donde estaran mostrando los mensajes, donde estran escribiendo y enviar
+    socket.on('messageReceived', (datos) => {
+        const newP = document.createElement('p');
+        //ahora que le quiero poner a este parrafo que va a tener como texto
+        //tendra el mensaje que se mando
+        newP.innerHTML = `<span>${datos.mensaje}</span>` //porque sera html por que muchas veces casi siempre no solo mostraras el texto plano
+        //document.getElementById('mensajes').append(newP);
+        contenedor.append(newP);
+    })
+</script>
+
+
