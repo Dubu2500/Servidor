@@ -1,33 +1,252 @@
-<h2>ChatGPI</h2>
-<div id="mensajes"></div>
-<input type = "text" id="mensaje">
-<button id = "boton"> Enviar</button> 
-<script>
-    console.log('carga la pagina de chat..')
-    const socket = io('/');
-    //escuchar un evento
-    socket.on('confirmacion', () => {
-        console.log('Excelente!')
-    })
-    const inputMensaje = document.getElementById('mensake');
-    const contenedor = document.getElementById('mensajes');
-    document.getElementById('boton').addEventListener('click', () => {
-        //voy a leer el mensaje que quiero enviar
-        const mensaje = inputMensaje.value;
-        socket.emit('messageSent', {
-            //dato: 'test'
-            mensaje
-        }) //emit para lanzar un evento
+<style>
+  #messages { height: 320px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin-bottom: 8px; }
+  .msg { margin: 6px 0; padding: 6px 8px; border-radius: 6px; max-width: 70%; }
+  .mine { background: #e3f2fd; margin-left: auto; text-align: right; }
+  .others { background: #f1f1f1; margin-right: auto; text-align: left; }
+  .system { color: #666; font-style: italic; text-align: center; }
+  #toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  #toolbar .spacer { flex: 1; }
+  .hidden { display: none; }
+</style>
 
-    }) //agregar un input una caja donde estaran mostrando los mensajes, donde estran escribiendo y enviar
-    socket.on('messageReceived', (datos) => {
-        const newP = document.createElement('p');
-        //ahora que le quiero poner a este parrafo que va a tener como texto
-        //tendra el mensaje que se mando
-        newP.innerHTML = `<span>${datos.mensaje}</span>` //porque sera html por que muchas veces casi siempre no solo mostraras el texto plano
-        //document.getElementById('mensajes').append(newP);
-        contenedor.append(newP);
-    })
+<h2>Chat en línea</h2>
+
+<div id="loginSection" class="">
+  <p>Escribe tu nombre para entrar:</p>
+  <input type="text" id="nameInput" placeholder="Tu nombre" />
+  <button id="saveNameBtn">Entrar</button>
+  <p><small>El nombre se va a guardar en sessionStorage pero se pierde al cerrar la ventana</small></p>
+  <div id="loginError" style="color:#b00020;"></div>
+  <hr>
+</div>
+
+<div id="roomsSection" class="hidden">
+  <p>Hola <strong id="greetName"></strong>. Elige una sala:</p>
+  <ul id="roomsList"></ul>
+  <button id="logoutBtn">Cerrar sesión</button>
+  <hr>
+</div>
+
+<div id="chatSection" class="hidden">
+  <div id="toolbar">
+    <div>Usuario: <strong id="usernameLabel"></strong></div>
+    <div>Sala: <strong id="roomLabel"></strong></div>
+    <div class="spacer"></div>
+    <button id="leaveBtn">Salir de la sala</button>
+    <button id="logoutBtn2">Cerrar sesión</button>
+  </div>
+  <div id="messages"></div>
+  <div>
+    <input type="text" id="messageInput" placeholder="Escribe un mensaje" />
+    <button id="sendBtn">Enviar</button>
+    <small id="hint" style="color:#666;">Enter para enviar</small>
+  </div>
+  <hr>
+  <button id="backToRoomsBtn">Elegir otra sala</button>
+  <br>
+</div>
+
+<script>
+  (function () {
+    //configuración de salas
+    var AVAILABLE_ROOMS = ['General', 'Prueba1', 'Prueba2'];
+
+    //referencias DOM
+    var loginSection = document.getElementById('loginSection');
+    var roomsSection = document.getElementById('roomsSection');
+    var chatSection = document.getElementById('chatSection');
+    var nameInput = document.getElementById('nameInput');
+    var saveNameBtn = document.getElementById('saveNameBtn');
+    var logoutBtn = document.getElementById('logoutBtn');
+    var logoutBtn2 = document.getElementById('logoutBtn2');
+    var greetName = document.getElementById('greetName');
+    var roomsList = document.getElementById('roomsList');
+    var usernameLabel = document.getElementById('usernameLabel');
+    var roomLabel = document.getElementById('roomLabel');
+    var messages = document.getElementById('messages');
+    var input = document.getElementById('messageInput');
+    var sendBtn = document.getElementById('sendBtn');
+    var leaveBtn = document.getElementById('leaveBtn');
+    var backToRoomsBtn = document.getElementById('backToRoomsBtn');
+    var loginError = document.getElementById('loginError');
+
+    var socket = io('/');
+    var username = sessionStorage.getItem('username') || '';
+    var currentRoom = '';
+
+    function showLogin() {
+      loginSection.classList.remove('hidden');
+      roomsSection.classList.add('hidden');
+      chatSection.classList.add('hidden');
+      nameInput.focus();
+    }
+
+    function showRooms() {
+      loginSection.classList.add('hidden');
+      roomsSection.classList.remove('hidden');
+      chatSection.classList.add('hidden');
+      greetName.textContent = username;
+      renderRooms();
+    }
+
+    function showChat() {
+      loginSection.classList.add('hidden');
+      roomsSection.classList.add('hidden');
+      chatSection.classList.remove('hidden');
+      usernameLabel.textContent = username;
+      roomLabel.textContent = currentRoom;
+      input.focus();
+    }
+
+    function renderRooms() {
+      roomsList.innerHTML = '';
+      for (var i = 0; i < AVAILABLE_ROOMS.length; i++) {
+        (function (roomName) {
+          var li = document.createElement('li');
+          var a = document.createElement('a');
+          a.href = '#';
+          a.textContent = roomName;
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            enterRoom(roomName);
+          });
+          li.appendChild(a);
+          roomsList.appendChild(li);
+        })(AVAILABLE_ROOMS[i]);
+      }
+    }
+
+    function appendSystem(text) {
+      var p = document.createElement('div');
+      p.className = 'msg system';
+      p.textContent = text;
+      messages.appendChild(p);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function appendMessage(data) {
+      var who = data.username === username ? 'mine' : 'others';
+      var div = document.createElement('div');
+      div.className = 'msg ' + who;
+      var time = new Date(data.timestamp || Date.now());
+      var hh = String(time.getHours()).padStart(2, '0');
+      var mm = String(time.getMinutes()).padStart(2, '0');
+      div.innerHTML = '<small>[' + hh + ':' + mm + '] ' + (who === 'mine' ? 'Yo' : data.username) + '</small><br>' +
+                      '<span>' + (data.message || '') + '</span>';
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    if (!username) {
+      showLogin();
+    } else {
+      showRooms();
+    }
+
+    saveNameBtn.addEventListener('click', function () {
+      var name = (nameInput.value || '').trim();
+      if (!name) {
+        loginError.textContent = 'Por favor escribe tu nombre';
+        return;
+      }
+      username = name;
+      sessionStorage.setItem('username', username);
+      loginError.textContent = '';
+      showRooms();
+    });
+    nameInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') saveNameBtn.click();
+    });
+
+    function enterRoom(roomName) {
+      currentRoom = roomName;
+      messages.innerHTML = '';
+      showChat();
+      //entrada (mensaje de sistema)
+      sendPayload({
+        type: 'system',
+        action: 'join',
+        room: currentRoom,
+        username: username,
+        message: username + ' se unió a la sala',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    function leaveRoom() {
+      if (!currentRoom) return;
+      //salida 
+      sendPayload({
+        type: 'system',
+        action: 'leave',
+        room: currentRoom,
+        username: username,
+        message: username + ' salió de la sala',
+        timestamp: new Date().toISOString()
+      });
+      currentRoom = '';
+      showRooms();
+    }
+
+    function sendPayload(payload) {
+      socket.emit('messageSent', payload);
+    }
+
+    function sendCurrent() {
+      var text = (input.value || '').trim();
+      if (!text || !currentRoom) return;
+      sendPayload({
+        type: 'chat',
+        room: currentRoom,
+        username: username,
+        message: text,
+        timestamp: new Date().toISOString()
+      });
+      input.value = '';
+      input.focus();
+    }
+
+    sendBtn.addEventListener('click', sendCurrent);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendCurrent(); });
+    leaveBtn.addEventListener('click', leaveRoom);
+    backToRoomsBtn.addEventListener('click', leaveRoom);
+    logoutBtn.addEventListener('click', function () {
+      if (currentRoom) leaveRoom();
+      sessionStorage.removeItem('username');
+      username = '';
+      showLogin();
+    });
+    logoutBtn2.addEventListener('click', function () {
+      if (currentRoom) leaveRoom();
+      sessionStorage.removeItem('username');
+      username = '';
+      showLogin();
+    });
+
+    //aqui vamos a filtrat por sala
+    socket.on('messageReceived', function (data) {
+      if (!data || data.room !== currentRoom) return;
+      if (data.type === 'system') {
+        appendSystem(data.message);
+      } else if (data.type === 'chat') {
+        appendMessage(data);
+      }
+    });
+    socket.on('confirmacion', function () {
+    });
+
+    //validar si eel usuario esta en la sala
+    window.addEventListener('beforeunload', function () {
+      if (username && currentRoom) {
+        try {
+          sendPayload({
+            type: 'system', action: 'leave', room: currentRoom, username: username,
+            message: username + ' salió de la sala', timestamp: new Date().toISOString()
+          });
+        } catch (e) {}
+      }
+    });
+  })();
 </script>
 
 
