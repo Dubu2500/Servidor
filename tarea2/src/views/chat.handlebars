@@ -1,88 +1,49 @@
 <style>
-  :root {
-    --bg: #f7f9fc;
-    --panel: #ffffff;
-    --border: #e5e7eb;
-    --text: #0f172a;
-    --muted: #64748b;
-    --primary: #2563eb;
-    --primary-600: #1d4ed8;
-    --danger: #dc2626;
-    --success: #16a34a;
-  }
-  body { background: var(--bg); color: var(--text); }
-  .chat-app { max-width: 900px; margin: 24px auto; padding: 0 16px; }
-  .title { margin: 8px 0 16px; font-weight: 700; letter-spacing: .2px; }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 4px 14px rgba(2, 8, 23, 0.05); padding: 16px; margin-bottom: 16px; }
-  .hidden { display: none; }
-
-  /* Rooms */
-  .room-list { list-style: none; padding: 0; margin: 8px 0 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-  .room-list a { display: inline-block; text-decoration: none; }
-  .btn { cursor: pointer; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; background: #f8fafc; color: var(--text); transition: all .15s ease; }
-  .btn:hover { background: #eef2ff; }
-  .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .btn-primary:hover { background: var(--primary-600); }
-  .btn-ghost { background: transparent; }
-  .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
-
-  /* Toolbar */
-  #toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  #messages { height: 320px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; margin-bottom: 8px; }
+  .msg { margin: 6px 0; padding: 6px 8px; border-radius: 6px; max-width: 70%; }
+  .mine { background: #e3f2fd; margin-left: auto; text-align: right; }
+  .others { background: #f1f1f1; margin-right: auto; text-align: left; }
+  .system { color: #666; font-style: italic; text-align: center; }
+  #toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
   #toolbar .spacer { flex: 1; }
-  .pill { display: inline-block; background: #eef2ff; color: #3730a3; padding: 4px 10px; border-radius: 999px; font-size: 12px; }
-
-  /* Messages */
-  #messages { height: 55vh; min-height: 320px; overflow-y: auto; border: 1px solid var(--border); padding: 12px; border-radius: 10px; background: #fbfdff; }
-  .msg { margin: 8px 0; padding: 8px 10px; border-radius: 10px; max-width: 70%; box-shadow: 0 2px 6px rgba(2,8,23,0.04); }
-  .mine { background: #e3f2fd; margin-left: auto; text-align: right; border: 1px solid #cfe4fb; }
-  .others { background: #f1f5f9; margin-right: auto; text-align: left; border: 1px solid #e2e8f0; }
-  .system { color: var(--muted); font-style: italic; text-align: center; background: transparent; border: 0; box-shadow: none; }
-  .msg small { color: var(--muted); display: block; margin-bottom: 2px; }
-
-  /* Composer */
-  .composer { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
-  .composer input { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); outline: none; background: #fff; }
-  .composer input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
-  .hint { color: var(--muted); margin-left: 6px; }
+  .hidden { display: none; }
 </style>
 
-<div class="chat-app">
-  <h2 class="title">Chat en línea</h2>
+<h2>Chat en línea</h2>
 
-  <div id="loginSection" class="card">
-    <p>Escribe tu nombre para entrar:</p>
-    <div class="composer" style="margin-top:6px;">
-      <input type="text" id="nameInput" placeholder="Tu nombre" />
-      <button class="btn btn-primary" id="saveNameBtn">Entrar</button>
-    </div>
-    <p class="hint">El nombre se guarda en sessionStorage y se pierde al cerrar la ventana.</p>
-    <div id="loginError" style="color:#b00020; margin-top:6px;"></div>
-  </div>
+<div id="loginSection" class="">
+  <p>Escribe tu nombre para entrar:</p>
+  <input type="text" id="nameInput" placeholder="Tu nombre" />
+  <button id="saveNameBtn">Entrar</button>
+  <p><small>El nombre se guarda en sessionStorage. Se pierde al cerrar la ventana.</small></p>
+  <div id="loginError" style="color:#b00020;"></div>
+  <hr>
+</div>
 
-  <div id="roomsSection" class="card hidden">
-    <p>Hola <strong id="greetName"></strong>. Elige una sala:</p>
-    <ul id="roomsList" class="room-list"></ul>
-    <button class="btn btn-ghost" id="logoutBtn">Cerrar sesión</button>
-  </div>
+<div id="roomsSection" class="hidden">
+  <p>Hola <strong id="greetName"></strong>. Elige una sala:</p>
+  <ul id="roomsList"></ul>
+  <button id="logoutBtn">Cerrar sesión</button>
+  <hr>
+</div>
 
-  <div id="chatSection" class="card hidden">
-    <div id="toolbar">
-      <div>Usuario: <span class="pill" id="usernameLabel"></span></div>
-      <div>Sala: <span class="pill" id="roomLabel"></span></div>
-      <div class="spacer"></div>
-      <button class="btn" id="leaveBtn">Salir de la sala</button>
-      <button class="btn btn-danger" id="logoutBtn2">Cerrar sesión</button>
-    </div>
-    <div id="messages"></div>
-    <div class="composer">
-      <input type="text" id="messageInput" placeholder="Escribe un mensaje" />
-      <button class="btn btn-primary" id="sendBtn">Enviar</button>
-      <small class="hint" id="hint">Enter para enviar</small>
-    </div>
-    <div style="margin-top:10px;">
-      <button class="btn" id="backToRoomsBtn">Elegir otra sala</button>
-    </div>
+<div id="chatSection" class="hidden">
+  <div id="toolbar">
+    <div>Usuario: <strong id="usernameLabel"></strong></div>
+    <div>Sala: <strong id="roomLabel"></strong></div>
+    <div class="spacer"></div>
+    <button id="leaveBtn">Salir de la sala</button>
+    <button id="logoutBtn2">Cerrar sesión</button>
   </div>
+  <div id="messages"></div>
+  <div>
+    <input type="text" id="messageInput" placeholder="Escribe un mensaje" />
+    <button id="sendBtn">Enviar</button>
+    <small id="hint" style="color:#666;">Enter para enviar</small>
+  </div>
+  <hr>
+  <button id="backToRoomsBtn">Elegir otra sala</button>
+  <br>
 </div>
 
 <script>
@@ -280,3 +241,4 @@
     });
   })();
 </script>
+
