@@ -14,7 +14,7 @@ router.get('/login', (req,res) => {
 router.get('/logout', (req,res) => {
     //borrar cockies
     //lo unico que hara es borrar la coockie
-    res.clearCookie('');
+    res.clearCookie('connect.sid');
     res.redirect('/'); //lo mandaremos a raiz nosostros ya decidimos si lo mandamos a raiz o a login o a otra pagina
     //falta decirle en el nombre de la coockie
 
